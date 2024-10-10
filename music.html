@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="static/styles.css" />
+    <title>Music Transcription</title>
+  </head>
+  <body>
+    <header>
+      <h1>Music Transcription</h1>
+    </header>
+    <main>
+      <input type="file" id="audioInput" accept="audio/*" required />
+      <button id="transcribeButton">Transcribe</button>
+      <div class="loading" id="loadingSpinner">
+        <div class="spinner"></div>
+      </div>
+      <canvas
+        id="musicCanvas"
+        width="800"
+        height="400"
+        aria-label="Music transcription canvas"
+      ></canvas>
+    </main>
+
+    <script>
+      document.getElementById("transcribeButton").onclick = function () {
+        const audioInput = document.getElementById("audioInput");
+        const loadingSpinner = document.getElementById("loadingSpinner");
+
+        if (audioInput.files.length === 0) {
+          alert("Please upload an audio file.");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("audio_file", audioInput.files[0]);
+
+        this.textContent = "Transcribing...";
+        this.disabled = true;
+        loadingSpinner.style.display = "inline-block";
+
+        fetch("/transcribe", {
+          method: "POST",
+          body: formData,
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("Network response was not ok");
+            }
+            return response.json();
+          })
+          .then((data) => {
+            if (data.length === 0) {
+              alert("No notes detected.");
+            } else {
+              drawNotes(data);
+            }
+            this.textContent = "Transcribe";
+            this.disabled = false;
+            loadingSpinner.style.display = "none";
+          })
+          .catch((error) => {
+            alert("An error occurred while processing the audio file.");
+            this.textContent = "Transcribe";
+            this.disabled = false;
+            loadingSpinner.style.display = "none";
+          });
+      };
+      /*ChatGPT generated*/
+      function drawNotes(detectedNotes) {
+        const canvas = document.getElementById("musicCanvas");
+        const ctx = canvas.getContext("2d");
+        const lineSpacing = 20; // Adjust line spacing as needed
+        const numLines = 5;
+        const baseLineY = canvas.height / 2 + lineSpacing * (numLines / 2);
+
+        // Clear previous canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw the treble clef
+        ctx.font = "80px Arial";
+        ctx.fillText("𝄞", 15, baseLineY - lineSpacing * 2 + 20);
+
+        // Draw the staff lines
+        for (let i = 0; i < numLines; i++) {
+          const y = baseLineY - i * lineSpacing;
+          ctx.beginPath();
+          ctx.moveTo(50, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }  /*end of AI generation*/
+        
+        // assign the notes to the ledger lines
+        const noteMapping = {
+          E4: -0.5,
+          F4: 0,
+          G4: 0.5,
+          A4: 1,
+          B4: 1.5,
+          C5: 2,
+          D5: 2.5,
+          E5: 3,
+          F5: 3.5,
+          G5: 4,
+          D4: -1,
+          C4: -1.5,
+          B3: -2,
+          A3: -2.5,
+          G3: -3,
+        };
+
+        // making sure everything is even
+        const noteSpacing = 80; 
+
+        //keeps track of notes below the staff
+        const notesBelowStaff = [];
+
+        detectedNotes.forEach((note, index) => {
+          const noteName = note.note; 
+          let duration = note.duration;
+
+          let symbol;
+          switch (duration.toLowerCase()) {
+            case "whole":
+              symbol = "𝅝"; 
+              break;
+            case "dotted-half":
+              symbol = "𝅗𝅥.";
+              break;
+            case "half":
+              symbol = "𝅗𝅥";
+              break;
+            case "dotted-quarter":
+              symbol = "♩.";
+              break;
+            case "quarter":
+              symbol = "♩"; 
+              break;
+            case "eighth":
+              symbol = "♪";
+              break;
+            case "sixteenth":
+              symbol = "𝅘𝅥𝅯";
+              break;
+            default:
+              return;
+          }
+
+          /*ChatGPT generated*/
+          // Calculate the Y position based on noteMapping
+          const noteYPosition = baseLineY - noteMapping[noteName] * lineSpacing;
+          console.log(`Note: ${noteName}, Y Position: ${noteYPosition}`); // Log note name and Y position
+
+          // Render the note symbol with equal spacing
+          ctx.fillText(symbol, 100 + index * noteSpacing, noteYPosition); // Use noteSpacing for equal spacing
+
+          // If the note is below the staff, add to notesBelowStaff
+          if (noteYPosition > baseLineY) {
+            notesBelowStaff.push(noteYPosition);
+          }
+        });
+
+        console.log("Notes Below Staff:", notesBelowStaff); 
+
+        // Render ledger lines for notes below the staff
+        if (notesBelowStaff.length > 0) {
+          // Determine the maximum Y position of notes below the staff
+          const maxYPosition = Math.max(...notesBelowStaff);
+
+          // Calculate how many pairs of ledger lines are needed based on the maximum Y position
+          const ledgerLineHeight = 10; // Adjust the height of each ledger line
+          const baseLedgerY = baseLineY + lineSpacing / 2; // Start ledger lines from below the staff
+
+          // Calculate the number of pairs needed
+          const pairsNeeded = Math.ceil(
+            (maxYPosition - baseLineY) / lineSpacing,
+          );
+
+          for (let i = 0; i < pairsNeeded; i++) {
+            const offset = i * ledgerLineHeight; // Adjust spacing between pairs of ledger lines
+
+            // Render two pairs of ledger lines for each set of notes below the staff
+            ctx.beginPath();
+            ctx.moveTo(100 - 15, baseLedgerY + offset);
+            ctx.lineTo(100 + 15, baseLedgerY + offset);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "black";
+            ctx.stroke();
+            ctx.closePath();
+
+            ctx.beginPath();
+            ctx.moveTo(100 - 15, baseLedgerY + offset + ledgerLineHeight);
+            ctx.lineTo(100 + 15, baseLedgerY + offset + ledgerLineHeight);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "black";
+            ctx.stroke();
+            ctx.closePath();
+          }
+          /*End of AI generation*/
+        }
+      }
+    </script>
+  </body>
+</html>
